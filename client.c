@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #define MAX_CLIENT 2048
 
@@ -32,7 +33,7 @@ int client_connect_to_server(int *client, const char *server_ip, int server_port
   addr.sin_port = htons(server_port);
   addr.sin_addr.s_addr = inet_addr(server_ip);
   
-  printf("server:%s,port:%d\n", server_ip, server_port);
+  //printf("server:%s,port:%d\n", server_ip, server_port);
   if(connect(*client, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) <0)
   {
     printf("%s\n", strerror(errno));
@@ -46,6 +47,9 @@ int multi_clients_connect_to_server(int count, const char *server_ip, int server
 {
   int i = 0;
   int max = 0;
+  int dealed = 0;
+  struct timeval start, end;
+
   if(g_client_count<0)
   {
      g_client_count = 0;
@@ -59,6 +63,7 @@ int multi_clients_connect_to_server(int count, const char *server_ip, int server
      g_client_count = 0;
   }
 
+  gettimeofday(&start, NULL);
   for(; i<MAX_CLIENT&&i<max; i++)
   {
     if(-1 == client_connect_to_server(&(g_client_sockets[i]), server_ip, server_port))
@@ -66,7 +71,14 @@ int multi_clients_connect_to_server(int count, const char *server_ip, int server
       return -1;
     }
     g_client_count++;
+    dealed++;
   }
+  gettimeofday(&end, NULL);
+
+  printf("start at: %d.%d\n", (int)start.tv_sec, (int)start.tv_usec);
+  printf("end   at: %d.%d\n", (int)end.tv_sec, (int)end.tv_usec);
+  printf("avg used time is %lf usec of %d,total used time is %ld usec\n", (1000*(end.tv_sec-start.tv_sec)+(end.tv_usec-start.tv_usec))/(double)dealed, count, 1000*(end.tv_sec-start.tv_sec)+(end.tv_usec-start.tv_usec));
+
   printf("after connect:left client socket:%d\n", g_client_count);
   return 0;
 }
@@ -169,7 +181,7 @@ int loop_command_server(int *server, int listen_port)
     else
     {
       printf("error command:%s\n", buffer);
-      sprintf(buffer, "please send like \"open:10\" or \"close:10\"");
+      sprintf(buffer, "please send like \"open:10\" or \"close:10\"\n");
       write(client_sock, buffer, strlen(buffer)+1);
     }
     
@@ -194,6 +206,7 @@ int main(int argc, char ** argv)
   strcpy(g_server_ip, argv[1]);
   g_server_port = atoi(argv[2]);
   command_server_port = atoi(argv[3]);
+  printf("max client count:%d,command server port is %d\n", MAX_CLIENT, command_server_port);
   loop_command_server(&g_command_server_socket, command_server_port);
   return 0;
 }

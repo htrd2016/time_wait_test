@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
   int client_sock;
   unsigned int len = sizeof(addr);
   int client_count = 0;
+  int on = 1;
 
   if(argc<2)
   {
@@ -33,6 +34,12 @@ int main(int argc, char *argv[])
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
   addr.sin_port = htons(listen_port);  
+  
+  if((setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)))<0)
+  {
+     perror("setsockopt failed");
+     return -1;
+  }
 
   if(bind(sock, (struct sockaddr*)&addr, sizeof(addr))<0)
   {
