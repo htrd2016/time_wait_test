@@ -8,8 +8,6 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <pthread.h>
-#include <linux/tcp.h>
 
 #define MAX_CLIENT 2048
 
@@ -19,46 +17,6 @@ int g_command_server_socket = 0;
 
 char g_server_ip[64];
 int g_server_port = -1;
-
-void init_client_sockets()
-{
-  int i=0;
-  for(i=0;i<MAX_CLIENT; i++)
-  {
-    g_client_sockets[i] = 0;
-  }
-}
-
-int is_client_disconnected(int sock)
-{
-  struct tcp_info info; 
-  int len=sizeof(info); 
-  getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len); 
-  if((info.tcpi_state != 1))
-  {
-    //printf("%d\n", (int)info.tcpi_state);
-    return 1;
-  }
-  return 0;
-}
-
-void *check_clients_connected_thread(void *argv)
-{
-  int i=0;
-  while(1)
-  {
-     for(i=0;i<g_client_count;i++)
-     {
-        if(g_client_sockets[i]!=0 && is_client_disconnected(g_client_sockets[i]) == 1)
-        {
-           printf("index %d client is closed\n", i);
-           close(g_client_sockets[i]);
-           g_client_sockets[i] = 0;
-        }
-     }
-     usleep(10000);
-  } 
-}
 
 int client_connect_to_server(int *client, const char *server_ip, int server_port)
 {
@@ -121,9 +79,8 @@ int multi_clients_connect_to_server(int count, const char *server_ip, int server
 
   printf("start at: %d.%d\n", (int)start.tv_sec, (int)start.tv_usec);
   printf("end   at: %d.%d\n", (int)end.tv_sec, (int)end.tv_usec);
-  //printf("avg used time is %lf usec of %d,total used time is %d sec %d usec\n", (time_tmp)/(double)dealed, count, (int)(time_tmp/1000000), (int)(time_tmp%1000000));
-  
-  printf("the count of %d clients connect to %s:%d total used time is %d seconds and %d millimicro seconds\n", dealed,server_ip, server_port, (int)(time_tmp/1000000), (int)(time_tmp%1000000));
+  printf("avg used time is %lf usec of %d,total used time is %d sec %d usec\n", (time_tmp)/(double)dealed, count, (int)(time_tmp/1000000), (int)(time_tmp%1000000));
+
   printf("after connect:left client socket:%d\n", g_client_count);
   return 0;
 }
@@ -231,7 +188,7 @@ int loop_command_server(int *server, int listen_port)
     }
     
     close(client_sock);
-    //printf("socket closed!!!\n");
+    printf("socket closed!!!\n");
   }
 
   close(*server);
@@ -240,41 +197,18 @@ int loop_command_server(int *server, int listen_port)
 
 int main(int argc, char ** argv)
 {
-  int command_server_port;
-  pthread_t ntid;
-  int temp;
-
+  int command_server_port;  
   g_client_count = 0;
 
   if(argc<4)
   {
-    printf("use age<path><server ip><server port><command server port>\n");
+    printf("use age<path><server ip><server port><command server port to create>\n");
     return -1;
   }
   strcpy(g_server_ip, argv[1]);
   g_server_port = atoi(argv[2]);
-  //client_count = atoi(argv[3]);
   command_server_port = atoi(argv[3]);
-  
-  init_client_sockets();
-
   printf("max client count:%d,command server port is %d\n", MAX_CLIENT, command_server_port);
-
-  if((temp=pthread_create(&ntid, NULL, check_clients_connected_thread, NULL))!= 0)
-  {
-    printf("can't create thread: %s\n",strerror(temp));
-    return -1;
-  }
-
   loop_command_server(&g_command_server_socket, command_server_port);
-  //printf("max client count:%d, client count to connect:%d,server port is:%d\n", MAX_CLIENT, client_count, g_server_port);
-
-
-  //multi_clients_connect_to_server(client_count, g_server_ip, g_server_port);
-
-  //sleep(30);
-
-  //multi_clients_close(client_count);
-
   return 0;
 }

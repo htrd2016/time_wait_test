@@ -11,10 +11,9 @@
 int g_client_sockets[MAX_CLIENT];
 int g_client_number = 0;
 
-int g_command_server_sock = 0;
 int g_server_sock = 0;
 
-int g_command_server_port = 0;
+int g_sleep_time = 10;
 
 int create_server(int *sock, int listen_port, struct sockaddr_in* paddr);
 
@@ -36,64 +35,26 @@ int multi_clients_close(int count)
   {
     close(g_client_sockets[i]);
     g_client_number--;
+    printf("socket closed index:%d\n", i);
   }
+
   if(g_client_number<0)
   {
      g_client_number = 0;
   }
 
-  printf("after close:left client socket:%d\n", g_client_number);
+  //printf("after close:left client socket:%d\n", g_client_number);
   return 0;
 }
 
 void *create_command_server_by_thread(void *arg)  
 {
-  struct sockaddr_in addr;
-  int client_sock = -1;
-  char buffer[1024];
-  size_t recv_len = 0;
-  unsigned int len = sizeof(struct sockaddr_in);
-  int count = 0; 
-  if (0 == create_server(&g_command_server_sock, g_command_server_port, &addr))
-  {
-    for(;;)
-    {
-      client_sock = accept(g_command_server_sock, (struct sockaddr*)&addr, &len);
-      printf("new command connection ...\n");
-      if(client_sock<=0)
-      {
-        printf("%s\n", strerror(errno));
-        close(g_command_server_sock);
-        return ((void*)0);
-      }
-      memset(buffer, 0, 1024);
-      if((recv_len=recv(client_sock, buffer, 1024, 0))<=0)
-      {
-        printf("%s\n", strerror(errno));
-        close(client_sock);
-        break;
-      }
-
-      printf("recv:%s\n", buffer);
-      if(strstr(buffer, "close:") != 0)
-      {
-        printf("%s\n", buffer);
-        count = atoi(buffer+strlen("close:"));
-        printf("count:%d\n", count);
-        multi_clients_close(count);
-      }
-      else
-      {
-        printf("error command:%s\n", buffer);
-        sprintf(buffer, "please send like \"close:10\"\n");
-        write(client_sock, buffer, strlen(buffer)+1);
-      }
-      close(client_sock);
-    }
-  }
-
-  printf("end of command socket!!!!\n");
-
+  sleep(g_sleep_time);
+  
+  printf("start to disconnect clients ...\n");
+  multi_clients_close(g_client_number);
+  printf("end of disconnect clients ...\n");
+  system("netstat -n|awk \'/^tcp/{++S[$NF]}END {for(a in S) print a, S[a]}\'");
   return ((void *)0);
 }
 
@@ -150,9 +111,8 @@ int main(int argc, char *argv[])
   }
   
   listen_port = atoi(argv[1]);  
-  g_command_server_port = atoi(argv[2]);
-  //g_sleep_time = atoi(argv[2]);
-  printf("listen on port %d, and command port is %d\n", listen_port, g_command_server_port); 
+  g_sleep_time = atoi(argv[2]);
+  printf("listen on port %d, and time to disconnect is %d\n", listen_port, g_sleep_time); 
   init_client_sockets();
 
   if((temp=pthread_create(&ntid, NULL, create_command_server_by_thread, NULL))!= 0)  
@@ -160,7 +120,6 @@ int main(int argc, char *argv[])
     printf("can't create thread: %s\n",strerror(temp));  
     return -1;  
   }  
-//  pthread_join(ntid,NULL);
 
   if(0==create_server(&g_server_sock, listen_port, &addr))
   {
@@ -168,7 +127,7 @@ int main(int argc, char *argv[])
     for(;;)
     {
       g_client_sockets[g_client_number] = accept(g_server_sock, (struct sockaddr*)&addr, &len);
-      printf("new connection %d...\n", g_client_number);
+      printf("new connection ...\n");
       if(g_client_sockets[g_client_number]<=0)
       {
         printf("%s\n", strerror(errno));
